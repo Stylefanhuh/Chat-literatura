@@ -170,6 +170,36 @@ body{
   margin-bottom: 28px;
 }
 
+.auth-tabs{
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  margin-bottom: 22px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--glass-border);
+}
+
+.auth-tab{
+  flex: 1;
+  padding: 9px 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.auth-tab.active{
+  background: linear-gradient(135deg, var(--violet), var(--blue));
+  color: #fff;
+  font-weight: 600;
+}
+
 #login-form{
   display: flex;
   flex-direction: column;
@@ -222,6 +252,12 @@ body{
   border-radius: var(--radius-sm);
   padding: 10px 12px;
   text-align: left;
+}
+
+.login-error.success{
+  color: var(--success);
+  background: rgba(52, 211, 153, 0.1);
+  border-color: rgba(52, 211, 153, 0.3);
 }
 
 .btn-primary{

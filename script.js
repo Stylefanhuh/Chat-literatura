@@ -17,6 +17,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const messagesRef = db.collection("messages");
+const usersRef = db.collection("usuarios");
 
 // ---------------------------------------------------------
 // 2. USUARIOS HARDCODEADOS
@@ -41,7 +42,14 @@ const chatScreen    = document.getElementById("chat-screen");
 const loginForm     = document.getElementById("login-form");
 const usernameInput = document.getElementById("username");
 const passwordInput = document.getElementById("password");
+const confirmPasswordGroup = document.getElementById("confirm-password-group");
+const confirmPasswordInput = document.getElementById("confirm-password");
 const loginError    = document.getElementById("login-error");
+const authTabs      = document.querySelectorAll(".auth-tab");
+const authSubtitle  = document.getElementById("auth-subtitle");
+const authSubmitBtn = document.getElementById("auth-submit-btn");
+
+let authMode = "login"; // "login" | "register"
 
 const currentUserName = document.getElementById("current-user-name");
 const logoutBtn        = document.getElementById("logout-btn");
@@ -62,6 +70,13 @@ let unsubscribeMessages = null;
 // 4. LOGIN
 // ---------------------------------------------------------
 function mostrarErrorLogin(mensaje) {
+  loginError.classList.remove("success");
+  loginError.querySelector("span").textContent = mensaje;
+  loginError.hidden = false;
+}
+
+function mostrarExitoLogin(mensaje) {
+  loginError.classList.add("success");
   loginError.querySelector("span").textContent = mensaje;
   loginError.hidden = false;
 }
@@ -70,11 +85,35 @@ function ocultarErrorLogin() {
   loginError.hidden = true;
 }
 
+// ---------- Cambiar entre "Iniciar sesión" y "Crear cuenta" ----------
+authTabs.forEach((tab) => {
+  tab.addEventListener("click", () => {
+    authMode = tab.dataset.mode;
+
+    authTabs.forEach((t) => t.classList.toggle("active", t === tab));
+    ocultarErrorLogin();
+    loginForm.reset();
+
+    if (authMode === "register") {
+      confirmPasswordGroup.hidden = false;
+      confirmPasswordInput.required = true;
+      authSubtitle.textContent = "Crea tu usuario y contraseña para entrar al debate";
+      authSubmitBtn.querySelector("span").textContent = "Crear cuenta";
+    } else {
+      confirmPasswordGroup.hidden = true;
+      confirmPasswordInput.required = false;
+      authSubtitle.textContent = "Entra con tus credenciales de clase para unirte a la conversación";
+      authSubmitBtn.querySelector("span").textContent = "Entrar al debate";
+    }
+  });
+});
+
+// ---------- Submit del formulario (login o registro según el modo) ----------
 loginForm.addEventListener("submit", (e) => {
   e.preventDefault();
   ocultarErrorLogin();
 
-  const username = usernameInput.value.trim();
+  const username = usernameInput.value.trim().toLowerCase();
   const password = passwordInput.value;
 
   if (username.length < 2 || username.length > 15) {
@@ -87,13 +126,77 @@ loginForm.addEventListener("submit", (e) => {
     return;
   }
 
-  if (USUARIOS[username] && USUARIOS[username] === password) {
-    iniciarSesion(username);
+  if (authMode === "register") {
+    procesarRegistro(username, password);
   } else {
-    mostrarErrorLogin("Usuario o contraseña incorrectos");
-    passwordInput.value = "";
+    procesarLogin(username, password);
   }
 });
+
+// ---------- LOGIN: revisa primero el objeto hardcodeado, luego Firestore ----------
+async function procesarLogin(username, password) {
+  if (USUARIOS[username] && USUARIOS[username] === password) {
+    iniciarSesion(username);
+    return;
+  }
+
+  authSubmitBtn.disabled = true;
+
+  try {
+    const doc = await usersRef.doc(username).get();
+
+    if (doc.exists && doc.data().password === password) {
+      iniciarSesion(username);
+    } else {
+      mostrarErrorLogin("Usuario o contraseña incorrectos");
+      passwordInput.value = "";
+    }
+  } catch (error) {
+    console.error("Error consultando usuario:", error);
+    mostrarErrorLogin("Error de conexión, intenta de nuevo");
+  } finally {
+    authSubmitBtn.disabled = false;
+  }
+}
+
+// ---------- REGISTRO: crea el usuario en Firestore si no existe ----------
+async function procesarRegistro(username, password) {
+  const confirmPassword = confirmPasswordInput.value;
+
+  if (password !== confirmPassword) {
+    mostrarErrorLogin("Las contraseñas no coinciden");
+    return;
+  }
+
+  if (USUARIOS[username]) {
+    mostrarErrorLogin("Ese usuario ya existe, elige otro");
+    return;
+  }
+
+  authSubmitBtn.disabled = true;
+
+  try {
+    const doc = await usersRef.doc(username).get();
+
+    if (doc.exists) {
+      mostrarErrorLogin("Ese usuario ya existe, elige otro");
+      return;
+    }
+
+    await usersRef.doc(username).set({
+      username: username,
+      password: password,
+      creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    iniciarSesion(username);
+  } catch (error) {
+    console.error("Error creando usuario:", error);
+    mostrarErrorLogin("Error de conexión, intenta de nuevo");
+  } finally {
+    authSubmitBtn.disabled = false;
+  }
+}
 
 function iniciarSesion(username) {
   currentUser = username;
@@ -261,7 +364,8 @@ questionCards.forEach((card) => {
 (function comprobarSesionGuardada() {
   const usuarioGuardado = localStorage.getItem(STORAGE_KEY);
 
-  if (usuarioGuardado && USUARIOS[usuarioGuardado]) {
+  if (usuarioGuardado) {
+    // Si ya inició sesión antes (hardcodeado o registrado), confiamos en localStorage
     currentUser = usuarioGuardado;
     mostrarPantallaChat();
   }
