@@ -1,16 +1,3 @@
-// Importar módulos de Firebase Web SDK desde CDNs oficiales (v10.9+)
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { 
-    getFirestore, 
-    collection, 
-    addDoc, 
-    query, 
-    orderBy, 
-    limit, 
-    onSnapshot, 
-    serverTimestamp 
-} from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
-
 // Configuración de Firebase del usuario
 const firebaseConfig = {
   apiKey: "AIzaSyOMC9jPngIdPHiNy2cdTmDccDncKCSudQ",
@@ -22,9 +9,9 @@ const firebaseConfig = {
   measurementId: "G-6VZEHH6QQY"
 };
 
-// Inicializar Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Inicializar Firebase utilizando el SDK compatible (disponible globalmente en window.firebase)
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 // Estado de la aplicación
 let currentUser = {
@@ -118,14 +105,14 @@ function initChatListener() {
     }
     
     // Crear consulta ordenada por fecha (límite de los últimos 100 mensajes para optimizar)
-    const messagesCollection = collection(db, "messages");
-    const q = query(messagesCollection, orderBy("timestamp", "asc"), limit(100));
+    const messagesCollection = db.collection("messages");
+    const q = messagesCollection.orderBy("timestamp", "asc").limit(100);
     
     statusIndicator.classList.remove("online");
     chatStatus.textContent = "Conectando al servidor...";
     
     // Iniciar el listener de Firestore
-    unsubscribe = onSnapshot(q, (snapshot) => {
+    unsubscribe = q.onSnapshot((snapshot) => {
         statusIndicator.classList.add("online");
         chatStatus.textContent = "Debate en vivo: Conectado";
         
@@ -156,11 +143,11 @@ chatForm.addEventListener("submit", async (e) => {
     messageInput.focus();
     
     try {
-        await addDoc(collection(db, "messages"), {
+        await db.collection("messages").add({
             sender: currentUser.username,
             text: text,
             type: "standard",
-            timestamp: serverTimestamp()
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
         });
     } catch (err) {
         console.error("Error al enviar mensaje: ", err);
@@ -176,11 +163,11 @@ questionCards.forEach(card => {
         
         try {
             // Mandamos un mensaje especial de tipo "system"
-            await addDoc(collection(db, "messages"), {
+            await db.collection("messages").add({
                 sender: currentUser.username,
                 text: `${currentUser.username} ha propuesto debatir la Pregunta ${qNum}: "${qText}"`,
                 type: "system",
-                timestamp: serverTimestamp()
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
         } catch (err) {
             console.error("Error al enviar propuesta de debate: ", err);
